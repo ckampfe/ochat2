@@ -16,5 +16,6 @@ defmodule Ochat2.Message do
     message
     |> cast(attrs, [:body, :who])
     |> validate_required([:body, :who])
+    |> validate_length(:body, min: 1)
   end
 end

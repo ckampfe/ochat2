@@ -17,7 +17,11 @@ defmodule Ochat2Web.Router do
   scope "/", Ochat2Web do
     pipe_through :browser
 
-    get "/", PageController, :home
+    # get "/", PageController, :home
+    live "/", IndexLive
+    live "/conversations", IndexLive
+    live "/conversations/new", ConversationLive
+    live "/conversations/:conversation_id", ConversationLive
   end
 
   # Other scopes may use custom stacks.

@@ -2,7 +2,8 @@ import Config
 
 # Configure your database
 config :ochat2, Ochat2.Repo,
-  database: Path.expand("../ochat2_dev.db", __DIR__),
+  # database: Path.expand("../ochat2_dev.db", __DIR__),
+  database: Path.expand("../conversations.db", __DIR__),
   pool_size: 5,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
