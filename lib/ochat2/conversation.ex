@@ -5,7 +5,8 @@ defmodule Ochat2.Conversation do
   schema "conversations" do
     field :name, :string
     field :model_id, :id
-    field :source_conversation_id, :id
+
+    belongs_to :conversation, Ochat2.Conversation, foreign_key: :source_conversation_id
 
     has_many :messages, Ochat2.Message
 
