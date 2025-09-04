@@ -7,6 +7,8 @@ defmodule Ochat2.Conversation do
     field :model_id, :id
     field :source_conversation_id, :id
 
+    has_many :messages, Ochat2.Message
+
     timestamps(type: :utc_datetime)
   end
 

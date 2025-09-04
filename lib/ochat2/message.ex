@@ -5,7 +5,8 @@ defmodule Ochat2.Message do
   schema "messages" do
     field :body, :string
     field :who, :string
-    field :conversation_id, :id
+
+    belongs_to :conversation, Ochat2.Conversation
 
     timestamps(type: :utc_datetime)
   end
