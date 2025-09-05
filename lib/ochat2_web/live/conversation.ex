@@ -112,7 +112,9 @@ defmodule Ochat2Web.ConversationLive do
     ~H"""
     <div class="m-4">
       <section>
-        <a href="/conversations" class="link">Back</a>
+        <div class="mb-2">
+          <a href="/conversations" class="link">Back</a>
+        </div>
         <div>
           <div :if={@models.loading}>Loading models...</div>
           <select :if={models = @models.ok? && @models.result} class="select">
@@ -133,22 +135,25 @@ defmodule Ochat2Web.ConversationLive do
         <table class="table">
           <thead>
             <tr>
-              <th></th>
-              <th></th>
-              <th></th>
+              <th class="hidden sm:table-cell"></th>
+              <th class="hidden sm:table-cell"></th>
+              <th class="hidden sm:table-cell"></th>
               <th></th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr :for={{message, i} <- Enum.with_index(@messages)}>
-              <td>{i + 1}</td>
-              <td>{message.inserted_at}</td>
-              <td>{message.who}</td>
-              <%!-- <td><pre>{message.body}</pre></td> --%>
-              <td>{message.body}</td>
+              <td class="hidden sm:table-cell">{i + 1}</td>
+              <td class="hidden sm:table-cell">{message.inserted_at}</td>
+              <td class="hidden sm:table-cell">{message.who}</td>
+              <td class="">{message.body}</td>
               <td>
-                <a phx-click="fork-conversation" phx-value-message_id={message.id} class="link">
+                <a
+                  phx-click="fork-conversation"
+                  phx-value-message_id={message.id}
+                  class="link"
+                >
                   Fork
                 </a>
               </td>
@@ -156,7 +161,7 @@ defmodule Ochat2Web.ConversationLive do
           </tbody>
         </table>
       </section>
-      <section class="flex">
+      <section class="flex mb-4">
         <.form
           for={@chat_input}
           phx-change="update-input"
@@ -169,7 +174,7 @@ defmodule Ochat2Web.ConversationLive do
             field={@chat_input[:body]}
             required
           />
-          <button class="btn">Send</button>
+          <button class="btn btn-xl sm:btn-md">Send</button>
         </.form>
       </section>
     </div>

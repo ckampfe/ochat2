@@ -43,37 +43,42 @@ defmodule Ochat2Web.IndexLive do
 
   def render(assigns) do
     ~H"""
-    <div class="container mb-5">
-      <div>
-        <h2>Conversations</h2>
-        <.link navigate={~p"/conversations/new"}>New</.link>
-      </div>
-      <table class="table container">
-        <thead>
-          <tr>
-            <th>started</th>
-            <th>last message</th>
-            <th>name</th>
-            <th>source</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr :for={conversation <- @conversations}>
-            <td>{conversation.inserted_at}</td>
-            <td>{conversation.last_message_inserted_at}</td>
-            <td>
-              <.link class="link" navigate={~p"/conversations/#{conversation.id}"}>
-                {conversation.name}
-              </.link>
-            </td>
-            <td :if={conversation.source_conversation_name}>
-              <.link class="link" navigate={~p"/conversations/#{conversation.source_conversation_id}"}>
-                {conversation.source_conversation_name}
-              </.link>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="m-4">
+      <section>
+        <h2 class="text-2xl">Conversations</h2>
+        <.link navigate={~p"/conversations/new"} class="link">New</.link>
+      </section>
+      <section>
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="hidden sm:table-cell">started</th>
+              <th class="hidden sm:table-cell">last message</th>
+              <th>name</th>
+              <th>source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={conversation <- @conversations}>
+              <td class="hidden sm:table-cell">{conversation.inserted_at}</td>
+              <td class="hidden sm:table-cell">{conversation.last_message_inserted_at}</td>
+              <td>
+                <.link class="link" navigate={~p"/conversations/#{conversation.id}"}>
+                  {conversation.name}
+                </.link>
+              </td>
+              <td :if={conversation.source_conversation_name}>
+                <.link
+                  class="link"
+                  navigate={~p"/conversations/#{conversation.source_conversation_id}"}
+                >
+                  {conversation.source_conversation_name}
+                </.link>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
     </div>
     """
   end
