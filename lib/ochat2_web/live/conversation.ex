@@ -60,7 +60,8 @@ defmodule Ochat2Web.ConversationLive do
         %{
           id: c.id,
           name: c.name,
-          model: m.name,
+          model_name: m.name,
+          model_id: m.id,
           source_conversation_id: c.source_conversation_id,
           source_conversation_name: c2.name,
           inserted_at: c.inserted_at
@@ -100,7 +101,7 @@ defmodule Ochat2Web.ConversationLive do
       |> assign(:conversation, conversation)
       |> assign(:messages, messages)
       |> assign(:chat_input, to_form(%{"body" => ""}))
-      |> assign(:selected_model_name, conversation.model)
+      |> assign(:selected_model_name, conversation.model_name)
       |> assign(:response_message_id, nil)
       |> assign(:ticker, nil)
 
@@ -116,15 +117,13 @@ defmodule Ochat2Web.ConversationLive do
           <div :if={@models.loading}>Loading models...</div>
           <select :if={models = @models.ok? && @models.result} class="select">
             <%= for model <- models do %>
-              <%= if model.name == @selected_model_name do %>
-                <option selected phx-value-model_id={model.id}>
-                  {model.name}
-                </option>
-              <% else %>
-                <option phx-click="select-model" phx-value-model_id={model.id}>
-                  {model.name}
-                </option>
-              <% end %>
+              <option
+                selected={model.name == @selected_model_name}
+                phx-click="select-model"
+                phx-value-model_id={model.id}
+              >
+                {model.name}
+              </option>
             <% end %>
           </select>
           <div :if={error = @models.failed}>{error}</div>
@@ -194,12 +193,41 @@ defmodule Ochat2Web.ConversationLive do
     {:noreply, socket}
   end
 
-  def handle_event("fork-conversation", %{"message_id" => _message_id} = _unsigned_params, socket) do
-    # create new conversation
-    # that contains the given message and all previous
-    # and redirect to that new conversation's liveview
-    raise "todo"
-    {:noreply, socket}
+  def handle_event("fork-conversation", %{"message_id" => message_id} = _unsigned_params, socket) do
+    message_id = String.to_integer(message_id)
+
+    {:ok, new_conversation_id} =
+      Repo.transact(fn ->
+        new_conversation =
+          %Conversation{
+            name: "a new conversation",
+            source_conversation_id: socket.assigns.conversation.id,
+            model_id: socket.assigns.conversation.model_id
+          }
+          |> Repo.insert!()
+
+        latest_message_from_source_conversation =
+          Message
+          |> where([m], m.id == ^message_id)
+          |> Repo.one!()
+
+        Repo.insert_all(
+          Message,
+          Message
+          |> where([m], m.conversation_id == ^socket.assigns.conversation.id)
+          |> where([m], m.inserted_at <= ^latest_message_from_source_conversation.inserted_at)
+          |> where([m], m.id <= ^message_id)
+          |> select([m], %{
+            who: m.who,
+            body: m.body,
+            conversation_id: ^new_conversation.id
+          })
+        )
+
+        {:ok, new_conversation.id}
+      end)
+
+    {:noreply, push_navigate(socket, to: ~p"/conversations/#{new_conversation_id}")}
   end
 
   def handle_event("update-input", %{"body" => body} = _unsigned_params, socket) do
