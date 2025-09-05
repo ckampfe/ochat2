@@ -156,13 +156,19 @@ defmodule Ochat2Web.ConversationLive do
           </tbody>
         </table>
       </section>
-      <section>
+      <section class="flex">
         <.form
           for={@chat_input}
           phx-change="update-input"
           phx-submit="send-chat-message"
+          class="w-screen"
         >
-          <.input class="textarea" type="textarea" field={@chat_input[:body]} required />
+          <.input
+            class="textarea w-full focus:outline-none"
+            type="textarea"
+            field={@chat_input[:body]}
+            required
+          />
           <button class="btn">Send</button>
         </.form>
       </section>
