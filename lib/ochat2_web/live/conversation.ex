@@ -289,26 +289,19 @@ defmodule Ochat2Web.ConversationLive do
     {:noreply, socket}
   end
 
-  def handle_info(:tick, socket) do
+  def handle_info(tick_event, socket) when tick_event in [:tick, :tock] do
+    {next_event, tick_character} =
+      case tick_event do
+        :tick -> {:tock, @filled_block}
+        :tock -> {:tick, @empty_block}
+      end
+
     socket =
       socket
-      |> assign(:ticker, Process.send_after(self(), :tock, :timer.seconds(1)))
+      |> assign(:ticker, Process.send_after(self(), next_event, :timer.seconds(1)))
       |> Phoenix.Component.update(:messages, fn messages ->
         List.update_at(messages, -1, fn message ->
-          %{message | body: @filled_block}
-        end)
-      end)
-
-    {:noreply, socket}
-  end
-
-  def handle_info(:tock, socket) do
-    socket =
-      socket
-      |> assign(:ticker, Process.send_after(self(), :tick, :timer.seconds(1)))
-      |> Phoenix.Component.update(:messages, fn messages ->
-        List.update_at(messages, -1, fn message ->
-          %{message | body: @empty_block}
+          %{message | body: tick_character}
         end)
       end)
 
