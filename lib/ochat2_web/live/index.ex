@@ -2,7 +2,7 @@ defmodule Ochat2Web.IndexLive do
   use Ochat2Web, :live_view
 
   alias Ochat2.Repo
-  alias Ochat2.{Conversation, Message}
+  alias Ochat2.{Conversation, Message, Model}
 
   import Ecto.Query
 
@@ -10,7 +10,7 @@ defmodule Ochat2Web.IndexLive do
     conversations =
       Conversation
       |> join(
-        :inner,
+        :left,
         [c],
         m in subquery(
           Message
@@ -46,7 +46,7 @@ defmodule Ochat2Web.IndexLive do
     <div class="m-4">
       <section>
         <h2 class="text-2xl">Conversations</h2>
-        <.link navigate={~p"/conversations/new"} class="link">New</.link>
+        <a class="link" phx-click="new-conversation">New</a>
       </section>
       <section>
         <table class="table">
@@ -81,5 +81,17 @@ defmodule Ochat2Web.IndexLive do
       </section>
     </div>
     """
+  end
+
+  def handle_event("new-conversation", _unsigned_params, socket) do
+    model =
+      Model
+      |> where([m], m.name == "llama3.3:latest")
+      |> select([:id])
+      |> Repo.one!()
+
+    conversation = Repo.insert!(%Conversation{name: "a new conversation", model_id: model.id})
+
+    {:noreply, push_navigate(socket, to: ~p"/conversations/#{conversation.id}")}
   end
 end
