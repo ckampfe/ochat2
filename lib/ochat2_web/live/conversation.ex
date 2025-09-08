@@ -17,7 +17,7 @@ defmodule Ochat2Web.ConversationLive do
     Enum.map(models, fn model -> model["name"] end)
   end
 
-  def send_chat_message_async(new_message, previous_messages, model, response_pid) do
+  def send_chat_message_async(new_message, previous_messages, model, pids_to_forward_to) do
     Task.start(fn ->
       all_messages = previous_messages ++ [new_message]
 
@@ -34,18 +34,62 @@ defmodule Ochat2Web.ConversationLive do
              json: body,
              into: fn {:data, data}, {req, resp} ->
                Logger.debug(data)
-               Kernel.send(response_pid, {:chat_response_chunk, JSON.decode!(data)})
+
+               Enum.each(pids_to_forward_to, fn pid ->
+                 Kernel.send(pid, {:chat_response_chunk, JSON.decode!(data)})
+               end)
+
                {:cont, {req, resp}}
              end,
              connect_options: [
-               timeout: :timer.minutes(2)
+               timeout: :timer.minutes(5)
              ],
-             receive_timeout: :timer.minutes(2)
+             receive_timeout: :timer.minutes(5)
            ) do
-        {:ok, _} -> nil
-        {:error, e} -> Kernel.send(response_pid, {:chat_response_error, e})
+        {:ok, _} ->
+          nil
+
+        {:error, e} ->
+          Enum.each(pids_to_forward_to, fn pid ->
+            Kernel.send(pid, {:chat_response_error, e})
+          end)
       end
     end)
+  end
+
+  def record_chat_response_in_database(response_message_id) do
+    {:ok, task_pid} =
+      Task.start(fn ->
+        do_record_chat_response(response_message_id)
+      end)
+
+    {:ok, task_pid, Process.monitor(task_pid)}
+  end
+
+  defp do_record_chat_response(response_message_id) do
+    receive do
+      {:chat_response_chunk, %{"done" => true}} ->
+        Logger.debug(
+          "record_chat_response task #{inspect(self())} shutting down normally after receiving 'done' message from Ollama."
+        )
+
+      {:chat_response_chunk, %{"done" => false, "response" => response}} ->
+        Message
+        |> where([m], m.id == ^response_message_id)
+        |> Ecto.Query.update(
+          set: [
+            body: fragment("body || ?", ^response)
+          ]
+        )
+        |> Repo.update_all([])
+
+        do_record_chat_response(response_message_id)
+    after
+      :timer.minutes(5) ->
+        Logger.warning(
+          "record_chat_response/2 Task terminated after 5 minutes, this is probably a leak."
+        )
+    end
   end
 
   def mount(%{"conversation_id" => conversation_id}, _session, socket) do
@@ -147,7 +191,7 @@ defmodule Ochat2Web.ConversationLive do
               <td class="hidden sm:table-cell">{i + 1}</td>
               <td class="hidden sm:table-cell">{message.inserted_at}</td>
               <td class="hidden sm:table-cell">{message.who}</td>
-              <td class="">{message.body}</td>
+              <td class=""><pre>{message.body}</pre></td>
               <td>
                 <a
                   phx-click="fork-conversation"
@@ -250,19 +294,24 @@ defmodule Ochat2Web.ConversationLive do
   end
 
   def handle_event("send-chat-message", %{"body" => body} = _unsigned_params, socket) do
-    my_message =
-      Repo.insert!(%Message{
-        who: "Me",
-        body: body,
-        conversation_id: socket.assigns.conversation.id
-      })
+    {:ok, %{response_message: response_message, my_message: my_message}} =
+      Repo.transact(fn ->
+        my_message =
+          Repo.insert!(%Message{
+            who: "Me",
+            body: body,
+            conversation_id: socket.assigns.conversation.id
+          })
 
-    response_message =
-      Repo.insert!(%Message{
-        body: "",
-        who: "LlaMa",
-        conversation_id: socket.assigns.conversation.id
-      })
+        response_message =
+          Repo.insert!(%Message{
+            body: "",
+            who: "LlaMa",
+            conversation_id: socket.assigns.conversation.id
+          })
+
+        {:ok, %{response_message: response_message, my_message: my_message}}
+      end)
 
     socket =
       socket
@@ -271,11 +320,14 @@ defmodule Ochat2Web.ConversationLive do
         messages ++ [my_message]
       end)
 
+    {:ok, record_chat_response_pid, record_chat_response_ref} =
+      record_chat_response_in_database(response_message.id)
+
     send_chat_message_async(
       my_message,
       socket.assigns.messages,
       socket.assigns.selected_model_name,
-      self()
+      [record_chat_response_pid, self()]
     )
 
     socket =
@@ -285,6 +337,18 @@ defmodule Ochat2Web.ConversationLive do
       end)
       |> assign(:chat_input, to_form(%{"body" => ""}))
       |> assign(:ticker, Process.send_after(self(), :tick, :timer.seconds(1)))
+      |> assign(:record_chat_response_ref, record_chat_response_ref)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:DOWN, ref, :process, _object, _reason} = m, socket)
+      when ref == socket.assigns.record_chat_response_ref do
+    Logger.warning(inspect(m))
+
+    socket =
+      socket
+      |> assign(:record_chat_response_ref, nil)
 
     {:noreply, socket}
   end
@@ -309,6 +373,8 @@ defmodule Ochat2Web.ConversationLive do
   end
 
   def handle_info({:chat_response_chunk, %{"done" => true}}, socket) do
+    Process.demonitor(socket.assigns.record_chat_response_ref, [:flush])
+
     socket =
       socket
       |> assign(:response_message_id, nil)
@@ -317,20 +383,12 @@ defmodule Ochat2Web.ConversationLive do
           %{message | body: String.replace(message.body, @filled_block, "")}
         end)
       end)
+      |> assign(:record_chat_response_ref, nil)
 
     {:noreply, socket}
   end
 
   def handle_info({:chat_response_chunk, %{"done" => false, "response" => response}}, socket) do
-    Message
-    |> where([m], m.id == ^socket.assigns.response_message_id)
-    |> Ecto.Query.update(
-      set: [
-        body: fragment("body || ?", ^response)
-      ]
-    )
-    |> Repo.update_all([])
-
     socket =
       socket
       |> Phoenix.Component.update(:messages, fn messages ->
