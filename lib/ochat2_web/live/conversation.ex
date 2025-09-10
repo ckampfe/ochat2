@@ -57,7 +57,7 @@ defmodule Ochat2Web.ConversationLive do
     end)
   end
 
-  def record_chat_response_in_database(response_message_id) do
+  def record_chat_response_in_database_async(response_message_id) do
     {:ok, task_pid} =
       Task.start(fn ->
         do_record_chat_response(response_message_id)
@@ -321,7 +321,7 @@ defmodule Ochat2Web.ConversationLive do
       end)
 
     {:ok, record_chat_response_pid, record_chat_response_ref} =
-      record_chat_response_in_database(response_message.id)
+      record_chat_response_in_database_async(response_message.id)
 
     send_chat_message_async(
       my_message,
